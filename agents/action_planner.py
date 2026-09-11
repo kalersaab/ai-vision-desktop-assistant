@@ -187,9 +187,11 @@ Rules:
         print(f"Step 4: Executing confirmed actions [{mode_str}]...")
         exec_result = self.action_executor.execute(
             plan,
+            frame_size=(w, h),
             safety_result=safety_result,
             dry_run=effective_dry_run,
         )
+
 
         status_str = "SUCCESS" if exec_result.success else "FAILED"
         print(f"\nPipeline Finished: {status_str} ({exec_result.actions_executed} actions executed)")
