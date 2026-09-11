@@ -175,7 +175,6 @@ class TestAnnotateFrame(unittest.TestCase):
 
         annotated = annotate_frame(frame, analysis, highlight_target="terminal")
         self.assertEqual(annotated.shape, (720, 1280, 3))
-        # Verify that pixels inside the box are modified (non-zero)
         self.assertTrue(np.any(annotated[500:650, 100:700] > 0))
 
 

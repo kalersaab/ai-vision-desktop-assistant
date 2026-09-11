@@ -37,11 +37,6 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Pydantic Data Models
-# ---------------------------------------------------------------------------
-
 class ScreenDimensions(BaseModel):
     """Dimensions of the captured screen frame."""
 
@@ -164,11 +159,9 @@ class UIElement(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        # Handle 'coordinates' as an alias for 'bbox'
         if "bbox" not in data and "coordinates" in data:
             data["bbox"] = data["coordinates"]
 
-        # If flat coordinates given: x, y, width, height directly on element
         if "bbox" not in data and all(k in data for k in ("x", "y", "width", "height")):
             data["bbox"] = {
                 "x": data.pop("x"),
@@ -186,7 +179,6 @@ class UIElement(BaseModel):
 
 
 class ScreenAnalysis(BaseModel):
-    """Top-level structured representation of the screen state."""
 
     screen: ScreenDimensions
     elements: List[UIElement] = Field(default_factory=list)
@@ -202,18 +194,13 @@ class ScreenAnalysis(BaseModel):
         q = query.strip().lower()
         if not q:
             return None
-
-        # Priority 1: Exact or substring match in name
         for elem in self.elements:
             if q in elem.name.lower():
                 return elem
-
-        # Priority 2: Substring match in element type
         for elem in self.elements:
             if q in elem.type.lower():
                 return elem
 
-        # Priority 3: Substring match in description
         for elem in self.elements:
             if elem.description and q in elem.description.lower():
                 return elem
@@ -234,13 +221,7 @@ class ScreenAnalysis(BaseModel):
 
         if not matches:
             return None
-        # Return smallest enclosing element (innermost)
         return min(matches, key=lambda e: e.bbox.area if e.bbox else sys.maxsize)
-
-
-# ---------------------------------------------------------------------------
-# JSON Extraction & Sanitization
-# ---------------------------------------------------------------------------
 
 def extract_json_payload(text: str) -> dict[str, Any]:
     """
@@ -249,8 +230,6 @@ def extract_json_payload(text: str) -> dict[str, Any]:
     and trailing reasoning remarks.
     """
     cleaned = text.strip()
-
-    # 1. Check for fenced code blocks
     code_block_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", cleaned, re.DOTALL | re.IGNORECASE)
     if code_block_match:
         try:
@@ -258,7 +237,6 @@ def extract_json_payload(text: str) -> dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # 2. Look for outermost balanced curly brackets
     first_brace = cleaned.find("{")
     last_brace = cleaned.rfind("}")
     if first_brace != -1 and last_brace > first_brace:
@@ -266,7 +244,6 @@ def extract_json_payload(text: str) -> dict[str, Any]:
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
-            # Try fixing trailing commas before closing braces/brackets
             fixed = re.sub(r",\s*([}\]])", r"\1", candidate)
             try:
                 return json.loads(fixed)
@@ -274,11 +251,6 @@ def extract_json_payload(text: str) -> dict[str, Any]:
                 pass
 
     raise ValueError(f"Could not extract a valid JSON object from model response:\n{text[:300]}")
-
-
-# ---------------------------------------------------------------------------
-# ScreenAnalyzer
-# ---------------------------------------------------------------------------
 
 class ScreenAnalyzer:
     """
@@ -386,7 +358,6 @@ Output pure JSON strictly with this schema:
         """
         data = extract_json_payload(raw_text)
 
-        # Ensure screen dimensions are present
         if "screen" not in data or not isinstance(data["screen"], dict):
             data["screen"] = {"width": screen_width, "height": screen_height}
         else:
@@ -398,7 +369,6 @@ Output pure JSON strictly with this schema:
         analysis.raw_response = raw_text
         analysis.inference_duration_ms = duration_ms
 
-        # Post-validation clamp on all bounding boxes
         clamped_elements: List[UIElement] = []
         for elem in analysis.elements:
             if elem.bbox is not None:
@@ -497,13 +467,7 @@ Output pure JSON strictly with this schema:
             duration_ms=duration_ms,
         )
 
-        # Match target element
         return analysis.find_element(target) or (analysis.elements[0] if analysis.elements else None)
-
-
-# ---------------------------------------------------------------------------
-# Visualization & Display Engine
-# ---------------------------------------------------------------------------
 
 _PALETTE: dict[str, Tuple[int, int, int]] = {
     "application": (235, 130, 52),   # Sky blue (BGR)
@@ -568,7 +532,6 @@ def annotate_frame(
         base_color = (0, 255, 255) if is_highlighted else _get_element_color(elem.type)
         line_thickness = 3 if is_highlighted else 2
 
-        # 1. Draw bounding box on overlay for subtle alpha-fill
         cv2.rectangle(
             overlay,
             (box.x, box.y),
@@ -577,7 +540,6 @@ def annotate_frame(
             thickness=-1,
         )
 
-        # 2. Draw border
         cv2.rectangle(
             annotated,
             (box.x, box.y),
@@ -586,14 +548,12 @@ def annotate_frame(
             thickness=line_thickness,
         )
 
-        # 3. Draw center crosshair
         cx, cy = box.center
         arm = 6
         cv2.line(annotated, (cx - arm, cy), (cx + arm, cy), (255, 255, 255), 1)
         cv2.line(annotated, (cx, cy - arm), (cx, cy + arm), (255, 255, 255), 1)
         cv2.circle(annotated, (cx, cy), 2, base_color, -1)
 
-        # 4. Badge label (Name + [type] + (x, y, w, h))
         label = f"{elem.name} [{elem.type}] ({box.x},{box.y} {box.width}x{box.height})"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.42
@@ -603,7 +563,6 @@ def annotate_frame(
         label_y = max(label_h + 8, box.y - 4)
         label_x = box.x
 
-        # Background badge for label readability
         cv2.rectangle(
             annotated,
             (label_x, label_y - label_h - 4),
@@ -629,7 +588,6 @@ def annotate_frame(
             cv2.LINE_AA,
         )
 
-    # Blend subtle alpha fill (8% opacity)
     cv2.addWeighted(overlay, 0.08, annotated, 0.92, 0, annotated)
     return annotated
 
@@ -679,10 +637,6 @@ def display_analysis(
             cv2.destroyAllWindows()
 
 
-# ---------------------------------------------------------------------------
-# CLI / Direct Execution Demonstration
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -699,7 +653,6 @@ if __name__ == "__main__":
     print("\n--- Validated JSON Output ---")
     print(json.dumps(analysis.model_dump(exclude={"raw_response"}), indent=2))
 
-    # Targeted query example
     print("\n--- Targeted Element Query: 'terminal' ---")
     terminal_elem = screen_analyzer.locate_element(frame, "terminal")
     if terminal_elem and terminal_elem.bbox:
@@ -713,5 +666,4 @@ if __name__ == "__main__":
     else:
         print("Terminal not currently located on screen.")
 
-    # Visual Display
     display_analysis(analysis, frame, wait_key=False)
