@@ -41,12 +41,14 @@ class AnalysisResult:
     duration_ms: float
     eval_count: Optional[int] = None
     prompt_eval_count: Optional[int] = None
+    thinking: Optional[str] = None
 
     @property
     def tokens_per_second(self) -> Optional[float]:
         if self.eval_count and self.duration_ms > 0:
             return self.eval_count / (self.duration_ms / 1000.0)
         return None
+
 
 
 def _to_image_bytes(image: ImageInput) -> bytes:
@@ -99,8 +101,9 @@ class VisionAnalyzer:
         model: str = "qwen3-vl:4b",
         *,
         host: Optional[str] = None,
-        timeout: float = 60.0,
-        num_ctx: int = 4096,
+        timeout: float = 180.0,
+        num_ctx: int = 8192,
+        num_predict: int = 2048,
         temperature: float = 0.2,
         system_prompt: Optional[str] = DEFAULT_SYSTEM_PROMPT,
     ) -> None:
@@ -108,8 +111,10 @@ class VisionAnalyzer:
         self.host = host
         self.timeout = timeout
         self.num_ctx = num_ctx
+        self.num_predict = num_predict
         self.temperature = temperature
         self.system_prompt = system_prompt
+
 
         self.client = ollama.Client(host=self.host, timeout=self.timeout)
         self._history: List[dict[str, Any]] = []
@@ -141,11 +146,13 @@ class VisionAnalyzer:
     def _build_options(self, extra_options: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
         options: dict[str, Any] = {
             "num_ctx": self.num_ctx,
+            "num_predict": self.num_predict,
             "temperature": self.temperature,
         }
         if extra_options:
             options.update(extra_options)
         return options
+
 
     def _prepare_messages(
         self,
@@ -208,7 +215,11 @@ class VisionAnalyzer:
             raise
 
         duration_ms = (time.monotonic() - t0) * 1000.0
-        content = response.message.content.strip() if response.message else ""
+        content = response.message.content.strip() if response.message and response.message.content else ""
+        thinking = getattr(response.message, "thinking", None)
+        if not content and thinking:
+            logger.debug("Content was empty; using thinking trace as fallback (%d chars)", len(thinking))
+            content = thinking.strip()
 
         if remember:
             self._history.append({"role": "user", "content": prompt})
@@ -220,7 +231,9 @@ class VisionAnalyzer:
             duration_ms=duration_ms,
             eval_count=getattr(response, "eval_count", None),
             prompt_eval_count=getattr(response, "prompt_eval_count", None),
+            thinking=thinking,
         )
+
 
     def analyze_stream(
         self,

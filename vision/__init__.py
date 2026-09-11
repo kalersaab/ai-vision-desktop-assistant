@@ -14,6 +14,15 @@ from vision.vision_processor import (
     VisionProcessor,
 )
 from vision.vision_analyzer import AnalysisResult, ImageInput, VisionAnalyzer
+from vision.screen_analyzer import (
+    BoundingBox,
+    ScreenAnalysis,
+    ScreenAnalyzer,
+    ScreenDimensions,
+    UIElement,
+    annotate_frame,
+    display_analysis,
+)
 
 __all__ = [
     "ScreenCapture",
@@ -29,4 +38,12 @@ __all__ = [
     "VisionAnalyzer",
     "AnalysisResult",
     "ImageInput",
+    "ScreenAnalyzer",
+    "ScreenAnalysis",
+    "UIElement",
+    "BoundingBox",
+    "ScreenDimensions",
+    "annotate_frame",
+    "display_analysis",
 ]
+
