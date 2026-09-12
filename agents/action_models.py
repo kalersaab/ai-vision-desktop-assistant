@@ -66,11 +66,16 @@ class ActionPlan(BaseModel):
         default_factory=list
     )
 
+    expected_outcome: Optional[str] = Field(
+        default=None,
+        description="Expected screen state or post-condition after action execution",
+    )
+
     requires_confirmation: bool = True
 
     status: str = Field(
         default="ready",
-        description="Lifecycle status: ready, validated, confirmed, rejected, executed",
+        description="Lifecycle status: ready, validated, confirmed, rejected, executed, verified, verification_failed, failed",
     )
 
     risk_level: str = Field(
@@ -84,10 +89,49 @@ class ActionPlan(BaseModel):
         lines = [
             f"ActionPlan (status: {self.status}, risk: {self.risk_level})",
             f"Request: {self.request}",
-            f"Actions ({len(self.actions)}):",
         ]
+        if self.expected_outcome:
+            lines.append(f"Expected Outcome: {self.expected_outcome}")
+        lines.append(f"Actions ({len(self.actions)}):")
         for idx, act in enumerate(self.actions, start=1):
             lines.append(f"  {idx}. {act.summary()}")
         if self.reason:
             lines.append(f"Reason: {self.reason}")
+        return "\n".join(lines)
+
+
+class VerificationResult(BaseModel):
+    verified: bool
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence level in the verification assessment",
+    )
+    observation: str = Field(
+        default="",
+        description="Visual observation of screen state post-action",
+    )
+    reason: str = Field(
+        default="",
+        description="Explanation of why action succeeded or failed",
+    )
+    expected_outcome: Optional[str] = Field(
+        default=None,
+        description="Target outcome being verified",
+    )
+    raw_response: Optional[str] = Field(
+        default=None,
+        description="Raw output from the vision model",
+    )
+
+    def summary(self) -> str:
+        status = "PASSED" if self.verified else "FAILED"
+        lines = [
+            f"Verification: {status} (confidence: {self.confidence:.2f})",
+        ]
+        if self.expected_outcome:
+            lines.append(f"Expected:     {self.expected_outcome}")
+        lines.append(f"Observation:  {self.observation}")
+        lines.append(f"Reason:       {self.reason}")
         return "\n".join(lines)

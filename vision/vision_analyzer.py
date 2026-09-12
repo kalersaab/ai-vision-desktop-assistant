@@ -182,8 +182,17 @@ class VisionAnalyzer:
         *,
         remember: bool = False,
         options: Optional[Mapping[str, Any]] = None,
+        think: Optional[Union[bool, str]] = None,
+        output_format: Optional[Union[str, Mapping[str, Any]]] = None,
     ) -> str:
-        res = self.analyze_detailed(image, prompt, remember=remember, options=options)
+        res = self.analyze_detailed(
+            image,
+            prompt,
+            remember=remember,
+            options=options,
+            think=think,
+            output_format=output_format,
+        )
         return res.content
 
     def analyze_detailed(
@@ -193,6 +202,8 @@ class VisionAnalyzer:
         *,
         remember: bool = False,
         options: Optional[Mapping[str, Any]] = None,
+        think: Optional[Union[bool, str]] = None,
+        output_format: Optional[Union[str, Mapping[str, Any]]] = None,
     ) -> AnalysisResult:
         png_bytes = _to_image_bytes(image)
         logger.debug("Sending image to %s (%.1f KB)", self.model, len(png_bytes) / 1024)
@@ -206,6 +217,8 @@ class VisionAnalyzer:
                 model=self.model,
                 messages=messages,
                 options=runtime_options,
+                think=think,
+                format=output_format,
             )
         except ollama.ResponseError as err:
             logger.error("Ollama response error for model '%s': %s", self.model, err)
